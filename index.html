@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>カスタマバーコード検証</title>
+<style>
+@font-face{font-family:JPBarcode;src:url(JPCustomerBarcode.ttf) format("truetype")}
+*{box-sizing:border-box}body{margin:0;background:#f2f5f8;color:#172736;font:16px/1.6 system-ui,sans-serif}
+main{max-width:640px;margin:7vh auto;padding:clamp(20px,5vw,44px);background:white;border:1px solid #d7e0e8;border-radius:16px}
+h1{font-size:clamp(24px,5vw,32px);margin:0 0 12px}label{display:block;font-weight:650;margin-top:16px}
+input{display:block;width:100%;font:inherit;padding:9px;border:1px solid #8293a1;border-radius:6px}
+button{font:inherit;background:#07594e;color:white;border:0;border-radius:6px;padding:8px 18px;margin-top:12px;cursor:pointer}
+button:disabled{opacity:.5;cursor:default}small{display:block;color:#445666}
+#status{min-height:1.6em}#barcode{overflow:auto;background:white;padding:3mm;font:10pt/1.5 JPBarcode;white-space:nowrap;color:black}
+</style>
+<main>
+<h1>カスタマバーコード検証</h1>
+<p>郵便番号と町域名以降の住所から、印字用文字列とバーコードを生成します。入力はブラウザ内で処理します。</p>
+<form id="form">
+<label for="zip">郵便番号</label>
+<input id="zip" value="100-0013" required autocomplete="off">
+<label for="address">町域名以降の住所</label>
+<input id="address" value="1丁目3番2号 郵便プラザ503室" autocomplete="off">
+<small>都道府県・市区町村・町域名を除いた部分を入力してください。</small>
+<button>生成</button>
+</form>
+<p id="status" role="status"></p>
+<label for="encoded">印字用文字列</label>
+<input id="encoded" readonly spellcheck="false">
+<button id="copy" type="button" disabled>コピー</button>
+<h2>バーコード</h2>
+<div id="barcode" role="img" aria-label="生成したカスタマバーコード"></div>
+<p><a href="BarcodeGlyphs.html">文字とバーの対応表</a> · <a href="JPCustomerBarcode.ttf" download>フォントをダウンロード</a></p>
+</main>
+<script>
+const get = id => document.getElementById(id);
+const alphabet = "0123456789-abcdefgh";
+const normalize = text => text.normalize("NFKC").replace(/[‐‑−]/g, "-");
+function kanjiNumber(text) {
+  const units = {十:10n, 百:100n, 千:1000n, 万:10000n};
+  let total = 0n, section = 0n, digits = "";
+  for (const c of text) {
+    if (!(c in units)) { digits += String("〇一二三四五六七八九".indexOf(c === "零" ? "〇" : c)); continue; }
+    if (c === "万") {
+      section += BigInt(digits || "0");
+      total += (section || 1n) * units[c];
+      section = 0n;
+    } else {
+      section += BigInt(digits || "1") * units[c];
+    }
+    digits = "";
+  }
+  return /[十百千万]/.test(text) ? String(total + section + BigInt(digits || "0")) : digits;
+}
+function encode(postalCode, address) {
+  const zip = normalize(postalCode).trim().replace(/^〒\s*/, "");
+  if (!/^[0-9]{3}-?[0-9]{4}$/.test(zip) || zip.endsWith("00")) {
+    throw new Error("末尾が00以外の7桁の郵便番号を入力してください。");
+  }
+
+  const tokens = normalize(address).toUpperCase().replace(/[&/・.]/g, "")
+    .replace(/[〇零一二三四五六七八九十百千万]+(?=丁目|丁|番地|番|号|地割|線|の|ノ)/g, kanjiNumber)
+    .match(/[A-Z]+|[0-9]+|-+|[^A-Z0-9-]+/g) || [];
+  let number = "", followsDigit = false;
+  for (const token of tokens) {
+    const isNumber = /^[0-9]/.test(token);
+    if (isNumber || (/^[A-Z]$/.test(token) && !(token === "F" && followsDigit))) number += token;
+    else if (number && !number.endsWith("-")) number += "-";
+    followsDigit = isNumber;
+  }
+  number = number.replace(/^-|-$/g, "").replace(/(?<=[A-Z])-|-(?=[A-Z])/g, "");
+  if (address.trim() && !number) throw new Error("住所から番地や英字を抽出できませんでした。");
+  const expanded = number.replace(/[A-Z]/g, letter => {
+    const offset = letter.charCodeAt(0) - 65;
+    return "abc"[Math.floor(offset / 10)] + offset % 10;
+  });
+  const payload = zip.replace("-", "") + expanded.slice(0, 13).padEnd(13, "d");
+  const sum = [...payload].reduce((total, char) => total + alphabet.indexOf(char), 0);
+  return "<" + payload + alphabet[(19 - sum % 19) % 19] + ">";
+}
+async function generate() {
+  get("status").textContent = "";
+  get("encoded").value = "";
+  get("barcode").textContent = "";
+  get("copy").disabled = true;
+  try {
+    const value = encode(get("zip").value, get("address").value);
+    get("encoded").value = value;
+    get("barcode").textContent = value;
+    get("copy").disabled = false;
+  } catch (error) {
+    get("status").textContent = error.message;
+  }
+}
+get("form").addEventListener("submit", event => { event.preventDefault(); generate(); });
+get("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(get("encoded").value);
+    get("status").textContent = "コピーしました。";
+  } catch {
+    get("encoded").select();
+    get("status").textContent = "選択した文字列をコピーしてください。";
+  }
+});
+generate();
+</script>
+</html>
