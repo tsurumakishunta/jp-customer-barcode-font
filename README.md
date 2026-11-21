@@ -2,6 +2,8 @@
 
 日本郵便の仕様に基づくカスタマバーコード用TrueTypeフォントです。郵便番号と町域名以降の住所を入力すると、印字用文字列とバーコードをブラウザで確認できます。
 
+**[カスタマバーコード検証デモを開く](https://tsurumakishunta.github.io/jp-customer-barcode-font/)**
+
 ## ファイル
 
 | ファイル | 内容 |
@@ -11,6 +13,10 @@
 | [BarcodeGlyphs.html](BarcodeGlyphs.html) | 入力文字とバーの対応表 |
 
 ## ブラウザで試す
+
+[公開デモ](https://tsurumakishunta.github.io/jp-customer-barcode-font/) を開くと、その場で印字用文字列の生成とフォントによるバーコード表示を試せます。
+
+ファイルを手元で開く場合は、以下の手順でお試しください。
 
 1. リポジトリの **Code → Download ZIP** からダウンロードして展開します。
 2. `index.html` をブラウザで開き、郵便番号と、町域名以降の住所を入力します。
