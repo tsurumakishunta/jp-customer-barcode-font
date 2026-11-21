@@ -12,6 +12,7 @@ input{display:block;width:100%;font:inherit;padding:9px;border:1px solid #8293a1
 button{font:inherit;background:#07594e;color:white;border:0;border-radius:6px;padding:8px 18px;margin-top:12px;cursor:pointer}
 button:disabled{opacity:.5;cursor:default}small{display:block;color:#445666}
 #status{min-height:1.6em}#barcode{overflow:auto;background:white;padding:3mm;font:10pt/1.5 JPBarcode;white-space:nowrap;color:black}
+#barcode svg{display:block;max-width:none}
 </style>
 <main>
 <h1>カスタマバーコード検証</h1>
@@ -35,6 +36,31 @@ button:disabled{opacity:.5;cursor:default}small{display:block;color:#445666}
 <script>
 const get = id => document.getElementById(id);
 const alphabet = "0123456789-abcdefgh";
+// Match the four bar heights and spacing in JPCustomerBarcode.ttf.
+const barPatterns = "033 003 021 201 012 030 210 102 120 300 303 213 231 123 321 132 312 330 000".split(" ");
+const barBounds = [[0, 2032], [0, 1364], [668, 1364], [668, 696]];
+const svgNamespace = "http://www.w3.org/2000/svg";
+
+function drawBarcode(value) {
+  const pattern = "02" + [...value.slice(1, -1)]
+    .map(character => barPatterns[alphabet.indexOf(character)]).join("") + "20";
+  const svg = document.createElementNS(svgNamespace, "svg");
+  const width = (pattern.length - 1) * 690 + 348;
+  svg.setAttribute("viewBox", "0 0 " + width + " 2032");
+  svg.setAttribute("width", (width * 10 / 2048) + "pt");
+  svg.setAttribute("height", (2032 * 10 / 2048) + "pt");
+  svg.setAttribute("aria-hidden", "true");
+  for (const [index, state] of [...pattern].entries()) {
+    const [top, height] = barBounds[Number(state)];
+    const bar = document.createElementNS(svgNamespace, "rect");
+    bar.setAttribute("x", String(index * 690));
+    bar.setAttribute("y", String(top));
+    bar.setAttribute("width", "348");
+    bar.setAttribute("height", String(height));
+    svg.append(bar);
+  }
+  get("barcode").replaceChildren(svg);
+}
 const normalize = text => text.normalize("NFKC").replace(/[‐‑−]/g, "-");
 function kanjiNumber(text) {
   const units = {十:10n, 百:100n, 千:1000n, 万:10000n};
@@ -86,8 +112,15 @@ async function generate() {
   try {
     const value = encode(get("zip").value, get("address").value);
     get("encoded").value = value;
-    get("barcode").textContent = value;
+    drawBarcode(value);
     get("copy").disabled = false;
+    // Keep the visible bar preview when a browser cannot load the font.
+    if (document.fonts) {
+      const faces = await document.fonts.load("10pt JPBarcode", value).catch(() => []);
+      if (faces.length && get("encoded").value === value) {
+        get("barcode").textContent = value;
+      }
+    }
   } catch (error) {
     get("status").textContent = error.message;
   }
